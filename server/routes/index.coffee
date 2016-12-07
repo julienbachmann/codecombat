@@ -6,7 +6,12 @@ module.exports.setup = (app) ->
   app.delete('/admin/feature-mode', mw.admin.deleteFeatureMode)
   
   app.all('/api/*', mw.api.clientAuth)
+  
   app.get('/api/auth/login-o-auth', mw.auth.loginByOAuthProvider)
+  
+  app.put('/api/classrooms/:handle/members', mw.api.putClassroomMember)
+  app.put('/api/classrooms/:classroomHandle/courses/:courseHandle/enrolled', mw.api.putClassroomCourseEnrolled)
+  
   app.post('/api/users', mw.api.postUser)
   app.get('/api/users/:handle', mw.api.getUser)
   app.post('/api/users/:handle/o-auth-identities', mw.api.postUserOAuthIdentity)

@@ -246,6 +246,64 @@ paths:
           schema:
             $ref: '#/definitions/UserResponse'
             
+  /classrooms/{handle}/members:
+    put:
+      tags:
+        - classrooms
+      description: Upserts a user into the classroom.
+      parameters:
+        - $ref: '#/parameters/handlePathParameter'
+        - name: code
+          description: "The code for joining this classroom"
+          in: body
+          required: true
+          schema:
+            type: 'string'
+        - name: userId
+          description: "The id of the user to add to the class."
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/objectIdString'
+          
+      responses:
+        "200":
+          description: 'The classroom with the member added.'
+          schema:
+            $ref: '#/definitions/ClassroomResponse'
+        
+  /classrooms/{classroomHandle}/course/{courseHandle}/enrolled:
+    put:
+      tags:
+        - classrooms
+      description: |
+        Enrolls a user in a course in a classroom.
+        If the course is paid, user must have an active license.
+        User must be a member of the classroom.
+      parameters:
+        - name: classroomHandle
+          in: path
+          type: string
+          required: true
+          description: The classroom's `_id`.
+        - name: courseHandle
+          in: path
+          type: string
+          required: true
+          description: The course's `_id`.
+        - name: userId
+          description: "The id of the user to add to the class."
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/objectIdString'
+          
+      responses:
+        "200":
+          description: 'The classroom with the user enrolled.'
+          schema:
+            $ref: '#/definitions/ClassroomResponse'
+            
   /user-lookup/{property}/{value}:
     get:
       tags:
@@ -292,13 +350,17 @@ definitions:
     type: string
     pattern: /^\d{4}-\d{2}-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{3}Z$/
     
+  objectIdString:
+    type: string
+    pattern: /^[0-9a-f]{24}$/
+    
   UserResponse:
     type: object
     title: 'UserResponse'
     description: 'Subset of properties listed here'
     properties:
       _id:
-        type: string
+        $ref: '#/definitions/objectIdString'
       email: 
         type: string
       name:
@@ -340,3 +402,13 @@ definitions:
       role:
         type: string
         description: Set to "student" if the user has a license.
+
+  ClassroomResponse:
+    type: object
+    title: 'ClassroomResponse'
+    description: 'Subset of properties listed here'
+    properties:
+      _id:
+        $ref: '#/definitions/objectIdString'
+      name:
+        type: string

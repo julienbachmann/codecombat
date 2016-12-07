@@ -7,6 +7,9 @@ request = require '../request'
 mongoose = require 'mongoose'
 moment = require 'moment'
 Prepaid = require '../../../server/models/Prepaid'
+Classroom = require '../../../server/models/Classroom'
+Course = require '../../../server/models/Course'
+CourseInstance = require '../../../server/models/CourseInstance'
 
 describe 'POST /api/users', ->
 
@@ -420,3 +423,78 @@ describe 'GET /api/user-lookup/israel-id/:israelId', ->
     [res, body] = yield request.getAsync({url, json: true, @auth, followRedirect: false })
     expect(res.statusCode).toBe(404)
     done()
+
+    
+describe 'PUT /api/classrooms/:handle/members', ->
+  beforeEach utils.wrap (done) ->
+    yield utils.clearModels([User, Classroom, APIClient])
+    @client = yield utils.makeAPIClient()
+    @teacher = yield utils.initUser({role: 'teacher'})
+    yield utils.loginUser(@teacher)
+    @classroom = yield utils.makeClassroom()
+    @student = yield utils.initUser({clientCreator: @client._id})
+    yield utils.logout()
+    done()
+    
+  it 'upserts a user into the classroom members list', utils.wrap (done) ->
+    url = utils.getURL("/api/classrooms/#{@classroom.id}/members")
+    json = { code: @classroom.get('code'), userId: @student.id }
+    [res, body] = yield request.putAsync { url, auth: @client.auth, json }
+    expect(res.statusCode).toBe(200)
+    expect(res.body.members.length).toBe(1)
+    expect(res.body.code).toBeUndefined()
+    expect(res.body.codeCamel).toBeUndefined()
+    done()
+    
+    
+describe 'PUT /api/classrooms/:classroomHandle/courses/:courseHandle/enrolled', ->
+  
+  beforeEach utils.wrap ->
+    yield utils.clearModels([User, Classroom, APIClient, Course, CourseInstance])
+    
+    admin = yield utils.initAdmin()
+    yield utils.loginUser(admin)
+    @freeCourse = yield utils.makeCourse({free: true})
+    @paidCourse = yield utils.makeCourse({free: false})
+    
+    @client = yield utils.makeAPIClient()
+    @teacher = yield utils.initUser({role: 'teacher', clientCreator: @client._id})
+    yield utils.loginUser(@teacher)
+    @student = yield utils.initUser({clientCreator: @client._id})
+    @classroom = yield utils.makeClassroom({}, {members: [@student]})
+    @freeCourse.url = utils.getURL("/api/classrooms/#{@classroom.id}/courses/#{@freeCourse.id}/enrolled")
+    @paidCourse.url = utils.getURL("/api/classrooms/#{@classroom.id}/courses/#{@paidCourse.id}/enrolled")
+    @json = { userId: @student.id }
+    
+  it 'upserts the user to the course instance, creating one if necessary', utils.wrap (done) ->
+    courseInstanceQuery = {courseID: @freeCourse._id, classroomID: @classroom._id}
+    courseInstance = yield CourseInstance.findOne(courseInstanceQuery)
+    expect(courseInstance).toBe(null)
+    
+    [res, body] = yield request.putAsync({url: @freeCourse.url, @json, auth: @client.auth})
+    expect(body.courses[0].enrolled.length).toBe(1)
+    courseInstance = yield CourseInstance.findOne(courseInstanceQuery)
+    expect(courseInstance.get('members').length).toBe(1)
+    expect(courseInstance.get('members')[0].equals(@student._id)).toBe(true)
+    courseInstanceCount = yield CourseInstance.count()
+    expect(courseInstanceCount).toBe(1)
+
+    # check idempotence
+    [res, body] = yield request.putAsync({url: @freeCourse.url, @json, auth: @client.auth})
+    courseInstance = yield CourseInstance.findOne(courseInstanceQuery)
+    expect(courseInstance.get('members').length).toBe(1)
+    courseInstanceCount = yield CourseInstance.count()
+    expect(courseInstanceCount).toBe(1)
+    done()
+    
+  it 'returns 403 if the client did not create the student', utils.wrap ->
+    yield @student.update({$unset: {clientCreator: ''}})
+    [res, body] = yield request.putAsync({url: @freeCourse.url, @json, auth: @client.auth})
+    expect(res.statusCode).toBe(403)
+
+  it 'returns 403 if the client did not create the classroom owner', utils.wrap ->
+    yield @teacher.update({$unset: {clientCreator: ''}})
+    [res, body] = yield request.putAsync({url: @freeCourse.url, @json, auth: @client.auth})
+    expect(res.statusCode).toBe(403)
+
+  
