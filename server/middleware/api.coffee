@@ -12,7 +12,7 @@ Prepaid = require '../models/Prepaid'
 moment = require 'moment'
 oauth = require '../lib/oauth'
 
-INCLUDED_USER_PRIVATE_PROPS = ['email', 'oAuthIdentities']
+INCLUDED_USER_PRIVATE_PROPS = ['email', 'oAuthIdentities', 'role']
 DATETIME_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}\:\d{2}\:\d{2}\.\d{3}Z$/ # JavaScript Date's toISOString() output
 
 clientAuth = wrap (req, res, next) ->
@@ -38,7 +38,7 @@ clientAuth = wrap (req, res, next) ->
   
 postUser = wrap (req, res) ->
   user = new User({anonymous: false})
-  user.set(_.pick(req.body, 'name', 'email'))
+  user.set(_.pick(req.body, 'name', 'email', 'role'))
   user.set('clientCreator', req.client._id)
   database.validateDoc(user)
   user = yield user.save()
@@ -245,13 +245,33 @@ putClassroomCourseEnrolled = wrap (req, res) ->
   userUpdateResult = yield user.update({ $addToSet: { courseInstances: courseInstance._id } })
     
   res.send(classroom.toObject({req, includeEnrolled: courseInstances}))
+
+
+getUserClassrooms = wrap (req, res) ->
+  user = yield database.getDocFromHandle(req, User)
+  if not user
+    throw new errors.NotFound('User not found.')
+
+  unless req.client.hasControlOfUser(user)
+    throw new errors.Forbidden('Must have created the user to perform this action.')
+
+  classrooms = yield Classroom.find(if user.get('role') is 'student' then { members: user._id } else { ownerID: user._id })
+  courseInstances = yield CourseInstance.find({classroomID: {$in: _.map(classrooms, '_id')}})
+  courseInstancesGrouped = _.groupBy(courseInstances, (ci) -> ci.get('classroomID').toString())
   
+  res.send(_.map(classrooms, (classroom) -> 
+    courseInstancesGroup = courseInstancesGrouped[classroom.id] ? []
+    return classroom.toObject({req, includeEnrolled: courseInstancesGroup})
+  ))
+
+
 module.exports = {
   clientAuth
   getUser
   getUserLookupByIsraelId
   postUser
   postUserOAuthIdentity
+  getUserClassrooms
   putUserSubscription
   putUserLicense
   putClassroomMember

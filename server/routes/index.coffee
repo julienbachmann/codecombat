@@ -14,6 +14,7 @@ module.exports.setup = (app) ->
   
   app.post('/api/users', mw.api.postUser)
   app.get('/api/users/:handle', mw.api.getUser)
+  app.get('/api/users/:handle/classrooms', mw.api.getUserClassrooms)
   app.post('/api/users/:handle/o-auth-identities', mw.api.postUserOAuthIdentity)
   app.post('/api/users/:handle/prepaids', mw.api.putUserSubscription) # Deprecated. TODO: Remove.
   app.put('/api/users/:handle/subscription', mw.api.putUserSubscription)

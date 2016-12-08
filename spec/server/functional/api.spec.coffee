@@ -24,12 +24,13 @@ describe 'POST /api/users', ->
     done()
 
   it 'creates a user that is marked as having been created by the API client', utils.wrap (done) ->
-    json = { name: 'name', email: 'e@mail.com' }
+    json = { name: 'name', email: 'e@mail.com', role: 'teacher' }
     [res, body] = yield request.postAsync({url, json, @auth})
     expect(res.statusCode).toBe(201)
     expect(body.clientCreator).toBe(@client.id)
     expect(body.name).toBe(json.name)
     expect(body.email).toBe(json.email)
+    expect(body.role).toBe('teacher')
     done()
     
     
@@ -93,6 +94,61 @@ describe 'GET /api/users/:handle', ->
     expect(res.statusCode).toBe(200)
     done()
     
+    
+describe 'GET /api/users/:handle/classrooms', ->
+  
+  beforeEach utils.wrap ->
+    yield utils.clearModels([User, Classroom, APIClient, Course, CourseInstance])
+
+    admin = yield utils.initAdmin()
+    yield utils.loginUser(admin)
+    @course = yield utils.makeCourse({free: true})
+
+    @client = yield utils.makeAPIClient()
+    @teacher = yield utils.initUser({role: 'teacher', clientCreator: @client._id})
+    yield utils.loginUser(@teacher)
+    @student = yield utils.initUser({role: 'student', clientCreator: @client._id})
+    @classroom = yield utils.makeClassroom({}, {members: [@student]})
+    yield utils.makeCourseInstance({}, {@course, @classroom, members: [@student]})
+    @otherTeacher = yield utils.initUser({role: 'teacher', clientCreator: @client._id})
+    yield utils.loginUser(@otherTeacher)
+    @classroom2 = yield utils.makeClassroom({}, {members: [@student]})
+    @classroom3 = yield utils.makeClassroom()
+    yield utils.logout()
+  
+  it 'returns a list of classrooms a student is in', utils.wrap ->
+    url = utils.getURL("/api/users/#{@student.id}/classrooms")
+    [res, body] = yield request.getAsync({url, json: true, auth: @client.auth})
+    expect(res.statusCode).toBe(200)
+    expect(res.body[0]._id).toBe(@classroom.id)
+    expect(res.body[1]._id).toBe(@classroom2.id)
+    expect(res.body[0].courses[0].enrolled.length).toBe(1)
+    expect(res.body.length).toBe(2)
+
+  it 'returns a list of classrooms a teacher owns', utils.wrap ->
+    url = utils.getURL("/api/users/#{@teacher.id}/classrooms")
+    [res, body] = yield request.getAsync({url, json: true, auth: @client.auth})
+    expect(res.statusCode).toBe(200)
+    expect(res.body[0]._id).toBe(@classroom.id)
+    expect(res.body[0].courses[0].enrolled.length).toBe(1)
+    expect(res.body.length).toBe(1)
+
+    url = utils.getURL("/api/users/#{@otherTeacher.id}/classrooms")
+    [res, body] = yield request.getAsync({url, json: true, auth: @client.auth})
+    expect(res.statusCode).toBe(200)
+    difference = _.difference((classroom._id for classroom in res.body), [@classroom2.id, @classroom3.id])
+    expect(difference.length).toBe(0)
+    
+  it 'returns 403 if the teacher or student is not created by the client', utils.wrap ->
+    yield @student.update({$unset: {clientCreator:''}})
+    url = utils.getURL("/api/users/#{@student.id}/classrooms")
+    [res, body] = yield request.getAsync({url, json: true, auth: @client.auth})
+    expect(res.statusCode).toBe(403)
+
+    yield @teacher.update({$unset: {clientCreator:''}})
+    url = utils.getURL("/api/users/#{@teacher.id}/classrooms")
+    [res, body] = yield request.getAsync({url, json: true, auth: @client.auth})
+    expect(res.statusCode).toBe(403)
   
 describe 'POST /api/users/:handle/o-auth-identities', ->
 
