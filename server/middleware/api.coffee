@@ -3,6 +3,7 @@ APIClient = require '../models/APIClient'
 Classroom = require '../models/Classroom'
 CourseInstance = require '../models/CourseInstance'
 Course = require '../models/Course'
+ThangType = require '../models/ThangType'
 User = require '../models/User'
 wrap = require 'co-express'
 errors = require '../commons/errors'
@@ -43,6 +44,30 @@ postUser = wrap (req, res) ->
   database.validateDoc(user)
   user = yield user.save()
   res.status(201).send(user.toObject({req, includedPrivates: INCLUDED_USER_PRIVATE_PROPS, virtuals: true}))
+
+
+putUserHeroConfig = wrap (req, res) ->
+  user = yield database.getDocFromHandle(req, User)
+  if not user
+    throw new errors.NotFound('User not found.')
+
+  unless req.client.hasControlOfUser(user)
+    throw new errors.Forbidden('Must have created the user.')
+
+  # verify this thang type exists and is a hero
+  heroConfig = _.clone(user.get('heroConfig') ? {})
+  if req.body.thangType
+    thangType = yield ThangType.findCurrentVersion(req.body.thangType, {kind: 1, original: 1})
+    if not thangType
+      throw new errors.NotFound('Hero not found.')
+    if thangType.get('kind') isnt 'Hero'
+      throw new errors.Forbidden('Given ThangType is not a Hero.')
+    heroConfig.thangType = thangType.get('original')
+
+  user.set({heroConfig})
+  database.validateDoc(user)
+  yield user.save()
+  res.status(200).send(user.toObject({req, includedPrivates: INCLUDED_USER_PRIVATE_PROPS, virtuals: true}))
   
   
 getUser = wrap (req, res) ->
@@ -273,6 +298,7 @@ module.exports = {
   postUserOAuthIdentity
   getUserClassrooms
   putUserSubscription
+  putUserHeroConfig
   putUserLicense
   putClassroomMember
   putClassroomCourseEnrolled

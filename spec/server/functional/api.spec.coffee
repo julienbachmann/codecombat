@@ -34,6 +34,37 @@ describe 'POST /api/users', ->
     done()
     
     
+describe 'PUT /api/users/:handle/hero-config', ->
+
+  beforeEach utils.wrap ->
+    yield utils.clearModels([User, APIClient])
+
+    @client = yield utils.makeAPIClient()
+    @user = yield utils.initUser({clientCreator: @client._id})
+    @url = utils.getURL("/api/users/#{@user.id}/hero-config")
+    
+    admin = yield utils.initAdmin()
+    yield utils.loginUser(admin)
+    @hero = yield utils.makeThangType({kind: 'Hero'})
+    @unit = yield utils.makeThangType({kind: 'Unit'})
+    yield utils.logout()
+ 
+  it 'edits the user\'s heroConfig thangType', utils.wrap ->
+    json = { thangType: @hero.get('original') }
+    [res, body] = yield request.putAsync({@url, json, auth: @client.auth})
+    expect(res.statusCode).toBe(200)
+    expect(res.body.heroConfig.thangType).toBe(@hero.get('original').toString())
+    
+  it 'returns 404 if the thangType is not found', utils.wrap ->
+    json = { thangType: mongoose.Types.ObjectId() }
+    [res, body] = yield request.putAsync({@url, json, auth: @client.auth})
+    expect(res.statusCode).toBe(404)
+    
+  it 'returns 403 if the thangType is NOT a hero', utils.wrap ->
+    json = { thangType: @unit.get('original') }
+    [res, body] = yield request.putAsync({@url, json, auth: @client.auth})
+    expect(res.statusCode).toBe(403)
+    
 describe 'GET /api/users/:handle', ->
 
   beforeEach utils.wrap (done) ->

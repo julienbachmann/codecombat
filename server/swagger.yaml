@@ -98,17 +98,22 @@ paths:
         - name: user
           in: body
           schema:
-            type: 'object'
+            type: object
             required:
               - name
               - email
             properties:
               name:
-                type: 'string'
+                type: string
               email:
-                type: 'string'
+                type: string
               role:
-                type: 'string'
+                type: string
+              heroConfig:
+                type: object
+                properties:
+                  thangType:
+                    $ref: '#/definitions/objectIdString'
       responses:
         "201":
           description: 'The created user'
@@ -143,6 +148,26 @@ paths:
             items:
               $ref: '#/definitions/ClassroomResponse'
             
+
+  /users/{handle}/hero-config:
+    put:
+      tags: 
+        - users
+      description: Set the user's hero.
+      parameters:
+        - $ref: '#/parameters/handlePathParameter'
+        - name: heroConfig
+          in: body
+          schema:
+            type: object
+            properties:
+              thangType:
+                $ref: '#/definitions/objectIdString'
+      responses:
+        "200":
+          description: 'The affected user'
+          schema:
+            $ref: '#/definitions/UserResponse'
             
   /users/{handle}/o-auth-identities:
     post:
@@ -175,18 +200,18 @@ paths:
           in: body
           required: true
           schema:
-            type: 'object'
+            type: object
             required:
               - provider
             properties:
               provider:
-                type: 'string'
+                type: string
                 description: Your OAuth Provider ID.
               accessToken:
-                type: 'string'
+                type: string
                 description: Will be passed through your lookup URL to get the user ID. Required if no `code`.
               code:
-                type: 'string'
+                type: string
                 description: Will be passed to the OAuth token endpoint to get a token. Required if no `accessToken`.
                 
       responses:
@@ -217,7 +242,7 @@ paths:
           in: body
           required: true
           schema:
-            type: 'object'
+            type: object
             required:
               - ends
             properties:
@@ -252,7 +277,7 @@ paths:
           in: body
           required: true
           schema:
-            type: 'object'
+            type: object
             required:
               - ends
             properties:
@@ -271,18 +296,21 @@ paths:
       description: Upserts a user into the classroom.
       parameters:
         - $ref: '#/parameters/handlePathParameter'
-        - name: code
-          description: "The code for joining this classroom"
+        - name: member
           in: body
           required: true
           schema:
-            type: 'string'
-        - name: userId
-          description: "The id of the user to add to the class."
-          in: body
-          required: true
-          schema:
-            $ref: '#/definitions/objectIdString'
+            type: object
+            required:
+              - code
+              - userId
+            properties:
+              code:
+                type: string
+                description: "The code for joining this classroom"
+              userId:
+                description: "The id of the user to add to the class."
+                type: string
           
       responses:
         "200":
@@ -366,7 +394,7 @@ security:
 definitions:
   roleString:
     type: string
-    description: 
+    description: "Usually either 'teacher' or 'student'"
 
   datetimeString:
     type: string
@@ -390,7 +418,7 @@ definitions:
       slug:
         type: string
       role:
-        type: string
+        $ref: '#/definitions/roleString'
       stats:
         type: object
         properties:
@@ -423,9 +451,7 @@ definitions:
             $ref: '#/definitions/datetimeString'
           active:
             type: 'boolean'
-      role:
-        type: string
-        description: Set to "student" if the user has a license.
+
 
   ClassroomResponse:
     type: object
